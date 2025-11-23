@@ -4,10 +4,15 @@ import json
 import threading
 import queue
 from PIL import ImageColor
+from pathlib import Path
+
+immunity_keyword = 'immunity'
+heartbeat_keyword = 'heartbeat'
 
 def get_config():
     config = {}
-    with open('config/devices.json', 'r') as file:
+    path = Path(__file__).parent / 'config/devices.json'
+    with open(path, 'r') as file:
         data = json.load(file)
         device = data[0]
 
@@ -43,23 +48,33 @@ def get_color(lamp):
     lamp.status()
     return rgb2hex(*lamp.colour_rgb())
 
+def heartbeat(q):
+    while True:
+        time.sleep(60)
+        q.put(heartbeat_keyword)
+
 def worker(q, lamp):
     last_color = None
     last_time = None
     last_immunity = None
 
-    immunity_keyword = 'immunity'
-
     while True:
         i = q.get()
 
-        if i == 'get':
+        if i == heartbeat_keyword:
+            lamp.heartbeat()
+            print('heartbeat')
+            q.task_done()
+            continue
+        elif i == 'get':
             print(get_color(lamp))
+            q.task_done()
             continue
 
         i = i.split(' ')
         if len(i) > 2:
             print('Invalid format')
+            q.task_done()
             continue
 
         color = i[0]
@@ -67,17 +82,20 @@ def worker(q, lamp):
 
         if len(color) != 7:
             print('Invalid hex')
+            q.task_done()
             continue
 
         if immunity != None:
             if not immunity.startswith(immunity_keyword):
                 print('Invalid immunity format')
+                q.task_done()
                 continue
 
             immunity = float(immunity[len(immunity_keyword):])
 
         if color == last_color:
             print('Same color, ignoring')
+            q.task_done()
             continue
 
         current_time = time.time()
@@ -86,6 +104,7 @@ def worker(q, lamp):
             if difference < last_immunity:
                 time_left = last_immunity - difference
                 print(f"Can't pierce immunity, need to wait {time_left:.3}s")
+                q.task_done()
                 continue
 
         set_color(lamp, color)
@@ -103,8 +122,11 @@ def main():
     lamp = get_lamp(config)
 
     q = queue.Queue()
-    workerThread = threading.Thread(target=worker, args=(q, lamp), daemon=True)
+    workerThread = threading.Thread(target=worker, args=[q, lamp], daemon=True)
     workerThread.start()
+
+    heartbeatThread = threading.Thread(target=heartbeat, args=[q], daemon=True)
+    heartbeatThread.start()
 
     while True:
         item = input()
