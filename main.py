@@ -49,9 +49,12 @@ def get_color(lamp):
     return rgb2hex(*lamp.colour_rgb())
 
 def heartbeat(q):
+    heartbeat_count = 0
     while True:
         time.sleep(60)
         q.put(heartbeat_keyword)
+        print(f'heartbeat {heartbeat_count}')
+        heartbeat_count += 1
 
 def worker(q, lamp):
     last_color = None
@@ -63,7 +66,6 @@ def worker(q, lamp):
 
         if i == heartbeat_keyword:
             lamp.heartbeat()
-            print('heartbeat')
             q.task_done()
             continue
         elif i == 'get':
