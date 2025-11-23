@@ -44,28 +44,6 @@ def get_color(lamp):
     return rgb2hex(*lamp.colour_rgb())
 
 def worker(q, lamp):
-    while True:
-        color = q.get()
-        set_color(lamp, color)
-        print(f'set color to {color}')
-        q.task_done()
-
-def main():
-    config = get_config()
-    lamp = get_lamp(config)
-
-    q = queue.Queue()
-    workerThread = threading.Thread(target=worker, args=(q, lamp), daemon=True)
-    workerThread.start()
-
-    # Send thirty task requests to the worker.
-    # for item in range(30):
-    #     q.put(item)
-
-    # Block until all tasks are done.
-    # q.join()
-    # print('All work completed')
-
     last_color = None
     last_time = None
     last_immunity = None
@@ -73,12 +51,9 @@ def main():
     immunity_keyword = 'immunity'
 
     while True:
-        i = input()
+        i = q.get()
 
-        if i == 'q':
-            print('Quitting...')
-            break
-        elif i == 'get':
+        if i == 'get':
             print(get_color(lamp))
             continue
 
@@ -113,12 +88,34 @@ def main():
                 print(f"Can't pierce immunity, need to wait {time_left:.3}s")
                 continue
 
-        # set_color(lamp, color)
-        q.put(color)
+        set_color(lamp, color)
+        print(f'set color to {color}')
+        # q.put(color)
 
         last_color = color
         last_immunity = immunity
         last_time = current_time
+
+        q.task_done()
+
+def main():
+    config = get_config()
+    lamp = get_lamp(config)
+
+    q = queue.Queue()
+    workerThread = threading.Thread(target=worker, args=(q, lamp), daemon=True)
+    workerThread.start()
+
+    while True:
+        item = input()
+        if item == 'q':
+            print('Quitting...')
+            break
+
+        q.put(item)
+
+    q.join()
+    print('All work completed')
 
 main()
 
